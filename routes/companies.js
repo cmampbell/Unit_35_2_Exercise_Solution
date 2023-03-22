@@ -43,25 +43,28 @@ router.post('/', async (req, res, next) => {
 
 router.patch('/:code', async (req, res, next) => {
     try {
-        const currCode = req.params.code
-        const { name, code, description } = req.body;
+        const code = req.params.code
+        const { name, description } = req.body;
 
-        const found = await db.query(`SELECT * FROM companies WHERE code=$1;`, [currCode]);
+        if(!name || !description) throw new ExpressError('Please provide name and description', 400)
 
-        if (found.rows.length === 0) throw new ExpressError(`No result found for ${currCode}`, 404);
+        const found = await db.query(`SELECT * FROM companies WHERE code=$1;`, [code]);
+
+        if (found.rows.length === 0) throw new ExpressError(`No result found for ${code}`, 404);
 
         const company = found.rows[0];
 
-        if(company.name != name || company.code != code || company.description != description ){
+        if(company.name != name || company.description != description ){
             const results = await db.query(
                 `UPDATE companies
-                SET name = $1, code = $2, description = $3
-                WHERE code = $4
-                RETURNING code, name, description`, [name, code, description, currCode]
+                SET name = $1, description = $2
+                WHERE code = $3
+                RETURNING code, name, description`, [name, description, code]
                 )
 
             return res.json({company: results.rows[0]})
-        } else {
+        } 
+        else {
             return res.json({company: company})
         }
     } catch(err) {
