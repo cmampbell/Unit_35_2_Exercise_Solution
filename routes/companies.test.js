@@ -6,9 +6,11 @@ const db = require('../db');
 
 const testCompanyInfo = {'name' : 'TestingCo', 'code' :'test', 'description' : 'Company used for testing purposes'};
 const testInvoiceInfo = ['test', 400, false, null];
+const testIndustryInfo = {'code': 'indu', 'industry': 'Testing'}
 
 let testCompany;
 let testInvoice;
+let testIndustry;
 
 beforeEach(async () => {
     testCompany = await db.query(`INSERT INTO companies (name, code, description) 
@@ -17,11 +19,20 @@ beforeEach(async () => {
     testInvoice = await db.query(`INSERT INTO invoices (comp_Code, amt, paid, paid_date) 
     VALUES ($1, $2, $3, $4) 
     RETURNING id, comp_code, amt, paid, add_date, paid_date`, testInvoiceInfo)
+    testIndustry = await db.query(`INSERT INTO industries
+    VALUES ('indu', 'Industry Test')`)
+    await db.query(`INSERT INTO company_industries (comp_code, ind_code)
+    VALUES ('test', 'indu')`)
+
 });
 
 afterEach(async () => {
-    await db.query(`DELETE FROM companies`)
-    await db.query(`DELETE FROM invoices`)
+    await Promise.all([
+        db.query(`DELETE FROM company_industries`),
+        db.query(`DELETE FROM industries`),
+        db.query(`DELETE FROM companies`),
+        db.query(`DELETE FROM invoices`)
+    ])
 });
 
 afterAll(async ()=> await db.end());
@@ -56,7 +67,7 @@ describe('GET /companies/:code', () => {
         expect(resp.statusCode).toBe(200);
         expect(resp.header['content-type']).toContain('application/json')
 
-        expect(resp.body).toEqual({'company': testCompany.rows[0], 'invoices': expect.any(Array) });
+        expect(resp.body).toEqual({'company': testCompany.rows[0], 'invoices': expect.any(Array), 'industries': (expect.any(Array)) });
     })
 
     test('Does /companies/:code return 404 if company not found', async ()=>  {
@@ -69,14 +80,14 @@ describe('GET /companies/:code', () => {
 
 describe('POST /companies', () => {
     test('Does POST /companies create a new company and return new company info', async () => {
-        const newCompany = {'name': 'DummyCo', 'code': 'dumm', 'description': 'dummy test company'};
+        const newCompany = {'name': 'Dummy Co', 'description': 'dummy test company'};
         const resp = await request(app).post(`/companies`).send(newCompany);
 
         expect(resp.statusCode).toBe(201);
         expect(resp.header['content-type']).toContain('application/json')
 
         expect(resp.body).toEqual({'company': expect.any(Object) });
-        expect(resp.body.company).toEqual(newCompany);
+        expect(resp.body.company).toEqual({'code': 'dummyco', ...newCompany});
 
         const all = await request(app).get('/companies');
 
@@ -84,7 +95,7 @@ describe('POST /companies', () => {
     })
 
     test('Does POST /companies return 400 if sent incomplete info', async ()=>  {
-        const resp = await request(app).post(`/companies`).send({'name': 'bobobo', 'code': 'bobo'})
+        const resp = await request(app).post(`/companies`).send({'name': 'bobobo'})
 
         expect(resp.statusCode).toBe(400);
         expect(resp.body).toEqual({'error': {'message' :'Bad request', 'status': 400}})

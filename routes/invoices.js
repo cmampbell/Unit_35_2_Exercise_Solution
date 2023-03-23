@@ -11,7 +11,7 @@ router.get('/', async (req, res, next) => {
         if (results.rows.length === 0) throw new ExpressError('No results found', 404)
         return res.json({invoices: results.rows })
     } catch (err) {
-        next(err)
+        return next(err)
     }
 })
 
@@ -40,7 +40,7 @@ router.get('/:id', async (req, res, next) => {
             }
         }}) 
     } catch (err) {
-        next(err);
+        return next(err);
     }
 })
 
@@ -57,30 +57,40 @@ router.post('/', async (req, res, next) => {
         return res.status(201).json({invoice: results.rows[0]});
 
     } catch (err){
-        next(err)
+        return next(err)
     }
 })
 
 router.patch('/:id', async (req, res, next) => {
     try {
         const id = req.params.id;
+
+        if (req.body.paid === true){
+            const result = await db.query(`
+            UPDATE invoices
+            SET paid = $2, paid_date = CURRENT_DATE
+            WHERE id = $1
+            RETURNING id, comp_code, amt, paid, add_date, paid_date`, [id, true ])
+
+            return res.json({invoice: result.rows[0]})
+        }
         const found = await db.query(`SELECT * FROM invoices WHERE id=$1;`, [id]);
         if (found.rows.length === 0) throw new ExpressError(`No result found for ${id}`, 404);
 
-        const {amt} = req.body;
+        const {amt, paid} = req.body;
         if (!amt) throw new ExpressError(`No amount to update`, 400)
 
         const result = await db.query(
             `UPDATE invoices
             SET amt = $1
             WHERE id = $2
-            RETURNING id, comp_code, amt, paid, add_date, paid_date`, [amt, id]
+            RETURNING id, comp_code, amt, paid, add_date, paid_date`, [amt, id ]
             )
 
        return res.json({invoice: result.rows[0]});
 
     } catch (err) {
-        next(err)
+        return next(err)
     }
 })
 
@@ -93,7 +103,7 @@ router.delete('/:id', async (req, res, next) => {
         const results = await db.query(`DELETE FROM invoices WHERE id = $1 RETURNING *`, [id]);
         return res.json({msg: 'Deleted', invoice: results.rows[0]});
     } catch (err) {
-        next(err);
+        return next(err);
     }
 })
 

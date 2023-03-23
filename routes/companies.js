@@ -1,4 +1,5 @@
 const express = require('express');
+const slugify = require('slugify')
 const db = require("../db");
 const ExpressError = require('../expressError');
 
@@ -10,34 +11,46 @@ router.get('/', async (req, res, next) => {
         if (results.rows.length === 0) throw new ExpressError('No results found', 404)
         return res.json({companies: results.rows })
     } catch (err) {
-        next(err)
+        return next(err)
     }
 })
 
 router.get('/:code', async (req, res, next) => {
     try{
         const code = req.params.code
-        const results = await db.query(`SELECT * FROM companies WHERE code=$1;`, [code])
-        if (results.rows.length === 0) throw new ExpressError(`No result found for ${code}`, 404)
+        const company = await db.query(`SELECT * FROM companies WHERE code=$1;`, [code])
+
+        if (company.rows.length === 0) throw new ExpressError(`No result found for ${code}`, 404)
 
         const invoices = await db.query(`SELECT * FROM invoices WHERE comp_code=$1`, [code])
-        return res.json({company: results.rows[0], invoices: invoices.rows})
+
+        const industry = await db.query(`
+            SELECT i.industry 
+            FROM companies as c 
+            JOIN company_industries as ci ON ci.comp_code = c.code 
+            JOIN industries as i ON ci.ind_code = i.code`)
+
+        const industries = industry.rows.map((ind) => ind.industry)
+        return res.json({company: company.rows[0], invoices: invoices.rows, industries})
     } catch (err) {
-        next(err)
+        return next(err)
     }
 })
 
 router.post('/', async (req, res, next) => {
     try{
-        const {name, code, description } = req.body;
-        if(!name || !code || !description) throw new ExpressError(`Bad request`, 400)
+        // we use slugify to make the code from name
+        const {name, description } = req.body;
+        if(!name || !description) throw new ExpressError(`Bad request`, 400)
+
+        const code = slugify(name, {replacement: '', lower: true })
         const results = await db.query(
             `INSERT INTO companies (name, code, description) 
             VALUES ($1, $2, $3) 
             RETURNING code, name, description`, [name, code, description])
         return res.status(201).json({company: results.rows[0]})
     } catch (err) {
-        next(err);
+        return next(err);
     }
 })
 
@@ -68,7 +81,7 @@ router.patch('/:code', async (req, res, next) => {
             return res.json({company: company})
         }
     } catch(err) {
-        next(err)
+        return next(err)
     }
 })
 
@@ -81,7 +94,7 @@ router.delete('/:code', async (req, res, next) => {
         const results = await db.query(`DELETE FROM companies WHERE code = $1 RETURNING name, code`, [code])
         return res.json({msg: 'Deleted', company: results.rows[0]})
     } catch (err) {
-        next(err)
+        return next(err)
     }
 })
 

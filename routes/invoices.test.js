@@ -90,13 +90,23 @@ describe('POST /invoices', () => {
 
 describe('PATCH /invoices/:id', () => {
     test('Does PATCH /invoices/:id update the invoice', async () => {
-        const resp = await request(app).patch(`/invoices/${testInvoice.rows[0].id}`).send({'amt': 6});
+        const resp = await request(app).patch(`/invoices/${testInvoice.rows[0].id}`).send({'amt': 6, 'paid': false});
 
         expect(resp.statusCode).toBe(200);
         expect(resp.header['content-type']).toContain('application/json');
 
         expect(resp.body).toEqual({'invoice': expect.any(Object) });
         expect(resp.body.invoice.amt).toBe(6);
+    })
+
+    test('Does PATCH /invoices/:id update the invoice to paid if paid submitted', async() => {
+        const resp = await request(app).patch(`/invoices/${testInvoice.rows[0].id}`).send({'amt': 600, 'paid':true})
+
+        expect(resp.statusCode).toBe(200);
+        expect(resp.header['content-type']).toContain('application/json');
+
+        expect(resp.body).toEqual({'invoice': expect.any(Object) });
+        expect(resp.body.invoice.paid).toBe(true);
     })
 
     test('Does PATCH /invoices/:id return 404 if there is no invoice with id', async () => {
